@@ -1,0 +1,15 @@
+services:
+  send:
+    build: .
+    container_name: send-tool
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      EXPIRY_MINUTES: 30
+      MAX_FILES: 50
+      MAX_FILE_SIZE: 2147483648
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data

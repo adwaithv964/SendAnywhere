@@ -1,0 +1,22 @@
+{
+  "name": "sendanywhere-lite",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A minimal Send Anywhere-style secure file transfer tool.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "dev": "node --env-file=.env --watch server.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "compression": "^1.7.5",
+    "express": "^5.1.0",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.1.0",
+    "multer": "^2.0.2"
+  }
+}

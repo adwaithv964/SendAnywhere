@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#d7dfe3">
+  <meta name="description" content="Secure internet file transfer with AES-256-GCM encryption.">
+  <title>Send</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="page">
+    <section class="cards" aria-label="File transfer">
+      <div class="card send-card">
+        <h1>Send</h1>
+        <button class="plus" id="chooseFiles" aria-label="Choose files" title="Choose files">
+          <span></span><span></span>
+        </button>
+        <input id="fileInput" type="file" multiple hidden>
+      </div>
+
+      <div class="card receive-card">
+        <h2>Receive</h2>
+        <div class="key-row">
+          <input id="keyInput" inputmode="numeric" maxlength="6" placeholder="Input key" aria-label="Input key">
+          <button id="receiveBtn" class="download-button" aria-label="Receive files" title="Receive files">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 19h14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="status" id="status" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+
+  <div class="modal hidden" id="sendModal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="sendTitle">
+      <button class="close" id="closeSend" aria-label="Close">×</button>
+      <h2 id="sendTitle">Send files</h2>
+      <div class="file-list" id="fileList"></div>
+      <div class="progress-wrap hidden" id="progressWrap">
+        <div class="progress-line"><span id="progressBar"></span></div>
+        <div class="progress-text" id="progressText">Preparing upload…</div>
+      </div>
+      <button id="startUpload" class="primary">Create transfer key</button>
+    </section>
+  </div>
+
+  <div class="modal hidden" id="resultModal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <section class="dialog result-dialog" role="dialog" aria-modal="true" aria-labelledby="resultTitle">
+      <button class="close" id="closeResult" aria-label="Close">×</button>
+      <h2 id="resultTitle">Your key</h2>
+      <div class="key-big" id="resultKey">000000</div>
+      <div class="expiry" id="resultExpiry"></div>
+      <div class="enc-badge" aria-label="Encrypted">🔒 AES-256-GCM Encrypted</div>
+      <button id="copyKey" class="primary">Copy key</button>
+      <button id="cancelTransfer" class="secondary">Delete transfer</button>
+      <div class="result-files" id="resultFiles"></div>
+    </section>
+  </div>
+
+  <div class="modal hidden" id="receiveModal" aria-hidden="true">
+    <div class="modal-backdrop"></div>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="receiveTitle">
+      <button class="close" id="closeReceive" aria-label="Close">×</button>
+      <h2 id="receiveTitle">Receive files</h2>
+      <div id="receiveBody"></div>
+    </section>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
