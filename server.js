@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const express = require('express');
 const helmet = require('helmet');
@@ -11,12 +11,12 @@ const fsp = require('fs/promises');
 const path = require('path');
 const crypto = require('crypto');
 
-// ─── Master key validation ────────────────────────────────────────────────────
+// â”€â”€â”€ Master key validation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 const MASTER_KEY_HEX = process.env.SERVER_MASTER_KEY || '';
 if (!/^[0-9a-fA-F]{64}$/.test(MASTER_KEY_HEX)) {
   console.error(
-    '\n  ✗  SERVER_MASTER_KEY is missing or invalid.\n' +
+    '\n  âœ—  SERVER_MASTER_KEY is missing or invalid.\n' +
     '     Generate a key with:\n' +
     "       node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\"\n" +
     '     Then set it as the SERVER_MASTER_KEY environment variable.\n'
@@ -28,7 +28,7 @@ const MASTER_KEY = Buffer.from(MASTER_KEY_HEX, 'hex');
 // Derive a separate secret for download token HMAC (never used for file encryption)
 const TOKEN_SECRET = crypto.createHmac('sha256', MASTER_KEY).update('download-token-v1').digest();
 
-// ─── Configuration ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Configuration â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
@@ -39,7 +39,7 @@ const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data
 const TRANSFER_DIR = path.join(DATA_DIR, 'transfers');
 const TMP_DIR = path.join(DATA_DIR, 'tmp');
 const TEXT_DIR = path.join(DATA_DIR, 'texts');
-const MAX_TEXT_SIZE = 2 * 1024 * 1024; // 2 MB — covers 500,000 chars worst-case UTF-8
+const MAX_TEXT_SIZE = 2 * 1024 * 1024; // 2 MB â€” covers 500,000 chars worst-case UTF-8
 
 // MIME types blocked from upload (HTML/JS injection and execution risk)
 const BLOCKED_MIME = new Set([
@@ -52,7 +52,7 @@ fs.mkdirSync(TRANSFER_DIR, { recursive: true });
 fs.mkdirSync(TMP_DIR, { recursive: true });
 fs.mkdirSync(TEXT_DIR, { recursive: true });
 
-// ─── Cryptographic helpers ─────────────────────────────────────────────────────
+// â”€â”€â”€ Cryptographic helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * Encrypt a small buffer (e.g. a filename) with AES-256-GCM.
@@ -82,7 +82,7 @@ function decryptSmall(keyBuf, b64) {
 
 /**
  * Seal a 32-byte transfer key under the server master key (AES-256-GCM).
- * Returns base64 — safe to store in manifest.json.
+ * Returns base64 â€” safe to store in manifest.json.
  */
 function sealKey(transferKeyBuf) {
   return encryptSmall(MASTER_KEY, transferKeyBuf);
@@ -97,7 +97,7 @@ function unsealKey(sealedBase64) {
 }
 
 /**
- * Encrypt a file from inputPath → outputPath using AES-256-GCM.
+ * Encrypt a file from inputPath â†’ outputPath using AES-256-GCM.
  * Only ciphertext is written to disk. IV and auth tag are returned
  * for storage in the manifest (they are not secret, only the key is).
  */
@@ -133,7 +133,7 @@ function createDecryptStream(keyBuf, ivHex, tagHex) {
   return decipher;
 }
 
-// ─── One-time signed download tokens ──────────────────────────────────────────
+// â”€â”€â”€ One-time signed download tokens â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Tokens are HMAC-SHA256 signed, expire in 60 seconds, and are single-use.
 // This prevents download-URL sharing and replay attacks.
 const usedNonces = new Set();
@@ -160,7 +160,7 @@ function verifyToken(token, transferId, fileId) {
 
   const expectedSig = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('base64url');
   try {
-    // Constant-time comparison — prevents timing-based forgery
+    // Constant-time comparison â€” prevents timing-based forgery
     if (!crypto.timingSafeEqual(Buffer.from(sig, 'base64url'), Buffer.from(expectedSig, 'base64url'))) {
       return { ok: false, reason: 'Invalid token.' };
     }
@@ -180,8 +180,10 @@ function verifyToken(token, transferId, fileId) {
   return { ok: true };
 }
 
-// ─── Express setup ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Express setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.disable('x-powered-by');
+// Trust exactly one hop (the Render/cloud reverse proxy). Never set to `true`
+// which trusts all proxies â€” that's what enabled the proxy-addr IP spoof.
 app.set('trust proxy', 1);
 
 app.use(helmet({
@@ -192,29 +194,45 @@ app.use(helmet({
       scriptSrcAttr: ["'none'"],   // Block inline event handlers
       styleSrc: ["'self'"],
       imgSrc: ["'self'", 'data:'],
+      fontSrc: ["'none'"],         // No external fonts
       connectSrc: ["'self'"],
       objectSrc: ["'none'"],
-      baseUri: ["'self'"],
+      mediaSrc: ["'none'"],
+      frameSrc: ["'none'"],
+      workerSrc: ["'none'"],
+      manifestSrc: ["'none'"],
+      formAction: ["'self'"],      // Block form submissions to foreign origins
+      baseUri: ["'none'"],         // Prevent base tag hijacking
       frameAncestors: ["'none'"],  // Clickjacking protection
       upgradeInsecureRequests: []  // Force HTTPS when behind TLS proxy
     }
   },
   crossOriginEmbedderPolicy: false,
-  referrerPolicy: { policy: 'no-referrer' }
+  referrerPolicy: { policy: 'no-referrer' },
+  hsts: { maxAge: 31536000, includeSubDomains: true, preload: true }
 }));
 
 // Extra headers not covered by helmet defaults
 app.use((_req, res, next) => {
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
   res.setHeader('X-DNS-Prefetch-Control', 'off');
   res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+  // Prevent MIME sniffing on API responses
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+});
+
+// Force all /api/ responses to be treated as JSON and not cached
+app.use('/api/', (_req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Vary', 'Accept');
   next();
 });
 
 app.use(compression());
 app.use(express.json({ limit: '4mb' }));
 
-// ─── Rate limiters ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Rate limiters â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Baseline: all /api/ routes
 const generalApiLimiter = rateLimit({
@@ -224,7 +242,7 @@ const generalApiLimiter = rateLimit({
   legacyHeaders: false
 });
 
-// Upload: 5 per 15 min per IP — upload is expensive, prevent abuse
+// Upload: 5 per 15 min per IP â€” upload is expensive, prevent abuse
 const uploadLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
@@ -233,7 +251,7 @@ const uploadLimiter = rateLimit({
   message: { error: 'Too many uploads. Try again in 15 minutes.' }
 });
 
-// Code lookup: 10 per 5 min per IP — prevent brute-force of 6-digit codes
+// Code lookup: 10 per 5 min per IP â€” prevent brute-force of 6-digit codes
 const lookupLimiter = rateLimit({
   windowMs: 5 * 60 * 1000,
   limit: 10,
@@ -271,14 +289,14 @@ const textLookupLimiter = rateLimit({
 
 app.use('/api/', generalApiLimiter);
 
-// ─── Filename sanitizer ────────────────────────────────────────────────────────
+// â”€â”€â”€ Filename sanitizer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function sanitizeFilename(input) {
   const base = path.basename(String(input || 'file'));
   const cleaned = base.replace(/[\u0000-\u001F\u007F]/g, '').replace(/[<>:"/\\|?*]/g, '_').trim();
   return cleaned.slice(0, 180) || 'file';
 }
 
-// ─── Transfer path helpers ─────────────────────────────────────────────────────
+// â”€â”€â”€ Transfer path helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function transferPath(id) { return path.join(TRANSFER_DIR, id); }
 function manifestPath(id) { return path.join(transferPath(id), 'manifest.json'); }
 function newCode() { return String(crypto.randomInt(100000, 1000000)); }
@@ -301,7 +319,7 @@ async function safeRemoveTransfer(id) {
   try { await fsp.rm(transferPath(id), { recursive: true, force: true }); } catch {}
 }
 
-// ─── Multer storage (uploads land in TMP_DIR before encryption) ────────────────
+// â”€â”€â”€ Multer storage (uploads land in TMP_DIR before encryption) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const storage = multer.diskStorage({
   destination: async (_req, _file, cb) => {
     try {
@@ -317,7 +335,7 @@ const storage = multer.diskStorage({
 
 const upload = multer({
   storage,
-  limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES },
+  limits: { fileSize: MAX_FILE_SIZE, files: MAX_FILES, fields: 0, parts: MAX_FILES + 1 },
   fileFilter: (_req, file, cb) => {
     const mime = (file.mimetype || '').toLowerCase().split(';')[0].trim();
     if (BLOCKED_MIME.has(mime)) {
@@ -327,12 +345,22 @@ const upload = multer({
   }
 });
 
-// ─── Upload ────────────────────────────────────────────────────────────────────
-app.post('/api/transfers', uploadLimiter, upload.array('files', MAX_FILES), async (req, res) => {
+// Multer error handler â€” surfaces clean 4xx messages without stack traces
+function handleMulterError(err, req, res, next) {
+  if (err && err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'File too large.' });
+  if (err && err.code === 'LIMIT_FILE_COUNT') return res.status(400).json({ error: `Too many files (max ${MAX_FILES}).` });
+  if (err && err.code === 'LIMIT_UNEXPECTED_FILE') return res.status(400).json({ error: 'Unexpected field.' });
+  if (err && err.status === 400) return res.status(400).json({ error: err.message });
+  if (err) return res.status(500).json({ error: 'Upload could not be processed.' });
+  next();
+}
+
+// â”€â”€â”€ Upload â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.post('/api/transfers', uploadLimiter, upload.array('files', MAX_FILES), handleMulterError, async (req, res) => {
   const files = req.files || [];
   if (!files.length) return res.status(400).json({ error: 'Choose at least one file.' });
 
-  // One unique 256-bit AES key per transfer — never stored in plaintext
+  // One unique 256-bit AES key per transfer â€” never stored in plaintext
   const transferKey = crypto.randomBytes(32);
   const sealedKey = sealKey(transferKey);
 
@@ -356,10 +384,10 @@ app.post('/api/transfers', uploadLimiter, upload.array('files', MAX_FILES), asyn
       const storedName = `${crypto.randomUUID()}.enc`;
       const finalPath = path.join(targetDir, storedName);
 
-      // Encrypt before writing to TRANSFER_DIR — plaintext never persists on disk
+      // Encrypt before writing to TRANSFER_DIR â€” plaintext never persists on disk
       const { iv, tag } = await encryptFileTo(file.path, finalPath, transferKey);
 
-      // Encrypt the original filename — manifest won't expose plaintext names
+      // Encrypt the original filename â€” manifest won't expose plaintext names
       const safeOriginalName = sanitizeFilename(file.originalname);
       const encName = encryptSmall(transferKey, Buffer.from(safeOriginalName, 'utf8'));
 
@@ -399,7 +427,7 @@ app.post('/api/transfers', uploadLimiter, upload.array('files', MAX_FILES), asyn
   }
 });
 
-// ─── Transfer lookup helpers ───────────────────────────────────────────────────
+// â”€â”€â”€ Transfer lookup helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function findTransferByCode(code) {
   let entries;
   try { entries = await fsp.readdir(TRANSFER_DIR, { withFileTypes: true }); } catch { return null; }
@@ -422,11 +450,15 @@ async function requireTransfer(req, res, next) {
     await safeRemoveTransfer(manifest.id);
     return res.status(410).json({ error: 'This transfer is no longer available.' });
   }
+  // Validate manifest.id is a real UUID before using it in path operations (path traversal guard)
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(manifest.id)) {
+    return res.status(500).json({ error: 'Corrupt transfer record.' });
+  }
   req.transfer = manifest;
   next();
 }
 
-// ─── Transfer info ─────────────────────────────────────────────────────────────
+// â”€â”€â”€ Transfer info â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/transfers/:code', lookupLimiter, requireTransfer, (req, res) => {
   const m = req.transfer;
   let key;
@@ -447,23 +479,29 @@ app.get('/api/transfers/:code', lookupLimiter, requireTransfer, (req, res) => {
   });
 });
 
-// ─── Issue one-time download token ────────────────────────────────────────────
+// â”€â”€â”€ Issue one-time download token â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Client must call this before each download. Tokens expire in 60 s and are single-use.
 app.post('/api/transfers/:code/token', tokenLimiter, requireTransfer, (req, res) => {
   const m = req.transfer;
   const { fileId } = req.body;
-  if (fileId !== undefined && fileId !== null && !m.files.find(f => f.id === fileId)) {
-    return res.status(404).json({ error: 'File not found.' });
+  // Validate fileId is a UUID to prevent injection into token payload
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (fileId !== undefined && fileId !== null) {
+    if (typeof fileId !== 'string' || !UUID_RE.test(fileId) || !m.files.find(f => f.id === fileId)) {
+      return res.status(404).json({ error: 'File not found.' });
+    }
   }
   res.json({ token: issueToken(m.id, fileId ?? null) });
 });
 
-// ─── Single file download ──────────────────────────────────────────────────────
+// â”€â”€â”€ Single file download â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/transfers/:code/files/:fileId', requireTransfer, async (req, res) => {
   const m = req.transfer;
+  // Validate fileId is a UUID to prevent path traversal via :fileId param
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!UUID_RE.test(req.params.fileId)) return res.status(400).json({ error: 'Invalid file ID.' });
   const file = m.files.find(f => f.id === req.params.fileId);
   if (!file) return res.status(404).json({ error: 'File not found.' });
-
   // Require a valid one-time token
   const token = req.query.t;
   if (!token) return res.status(403).json({ error: 'Download token required.' });
@@ -471,6 +509,12 @@ app.get('/api/transfers/:code/files/:fileId', requireTransfer, async (req, res) 
   if (!check.ok) return res.status(403).json({ error: check.reason });
 
   const source = path.join(transferPath(m.id), file.storedName);
+  // Path traversal guard: ensure resolved path stays within the transfer directory
+  const expectedDir = path.resolve(transferPath(m.id));
+  const resolvedSource = path.resolve(source);
+  if (!resolvedSource.startsWith(expectedDir + path.sep) && resolvedSource !== expectedDir) {
+    return res.status(400).json({ error: 'Invalid file path.' });
+  }
   try { await fsp.access(source, fs.constants.R_OK); } catch {
     return res.status(404).json({ error: 'File is unavailable.' });
   }
@@ -504,7 +548,7 @@ app.get('/api/transfers/:code/files/:fileId', requireTransfer, async (req, res) 
   rStream.pipe(decipher).pipe(res);
 });
 
-// ─── Download all as ZIP ───────────────────────────────────────────────────────
+// â”€â”€â”€ Download all as ZIP â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/transfers/:code/all', requireTransfer, async (req, res) => {
   const m = req.transfer;
   if (!m.files.length) return res.status(404).json({ error: 'No files in transfer.' });
@@ -546,13 +590,13 @@ app.get('/api/transfers/:code/all', requireTransfer, async (req, res) => {
   } catch {}
 });
 
-// ─── Delete transfer ───────────────────────────────────────────────────────────
+// â”€â”€â”€ Delete transfer â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.delete('/api/transfers/:code', requireTransfer, async (req, res) => {
   await safeRemoveTransfer(req.transfer.id);
   res.status(204).end();
 });
 
-// ─── Text transfers ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Text transfers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function textManifestPath(code) { return path.join(TEXT_DIR, `${code}.json`); }
 
@@ -576,7 +620,7 @@ async function newTextCode() {
   return String(crypto.randomInt(100000, 1000000));
 }
 
-// POST /api/texts — create a text transfer
+// POST /api/texts â€” create a text transfer
 app.post('/api/texts', textSendLimiter, async (req, res) => {
   const text = req.body && typeof req.body.text === 'string' ? req.body.text : '';
   if (!text.trim()) return res.status(400).json({ error: 'Text cannot be empty.' });
@@ -600,12 +644,12 @@ app.post('/api/texts', textSendLimiter, async (req, res) => {
     await writeTextManifest(code, manifest);
     res.status(201).json({ code, expiresAt: manifest.expiresAt, charCount: manifest.charCount });
   } catch (err) {
-    console.error('Text upload error:', err);
+    console.error('[TEXT_SEND_ERROR]', err.message || '');
     res.status(500).json({ error: 'Could not save text.' });
   }
 });
 
-// GET /api/texts/:code — retrieve a text transfer
+// GET /api/texts/:code â€” retrieve a text transfer (single-use)
 app.get('/api/texts/:code', textLookupLimiter, async (req, res) => {
   const code = String(req.params.code || '');
   if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter a valid 6-digit key.' });
@@ -634,7 +678,7 @@ app.get('/api/texts/:code', textLookupLimiter, async (req, res) => {
   res.json({ code, text, charCount: manifest.charCount, expiresAt: manifest.expiresAt });
 });
 
-// DELETE /api/texts/:code — cancel a text transfer (sender)
+// DELETE /api/texts/:code â€” cancel a text transfer (sender)
 app.delete('/api/texts/:code', async (req, res) => {
   const code = String(req.params.code || '');
   if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Invalid key.' });
@@ -642,14 +686,28 @@ app.delete('/api/texts/:code', async (req, res) => {
   res.status(204).end();
 });
 
-// ─── Health ────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Health â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/api/health', (_req, res) => res.json({ ok: true, encrypted: true }));
 
-// ─── Static files ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ 404 handler for unknown API routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.use('/api/', (_req, res) => res.status(404).json({ error: 'Not found.' }));
+
+// â”€â”€â”€ Static files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.use(express.static(path.join(__dirname, 'public'), { extensions: ['html'], maxAge: '1h' }));
 app.get('/{*splat}', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
-// ─── Cleanup expired transfers every 5 minutes ─────────────────────────────────
+// â”€â”€â”€ Global error handler (OWASP A09 â€” never leak stack traces) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  console.error('[ERROR]', err.status || 500, err.code || '', err.message || '');
+  const status = (typeof err.status === 'number' && err.status >= 400 && err.status < 600)
+    ? err.status : 500;
+  if (!res.headersSent) {
+    res.status(status).json({ error: status < 500 ? (err.message || 'Bad request.') : 'Internal server error.' });
+  }
+});
+
+// â”€â”€â”€ Cleanup expired transfers every 5 minutes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 setInterval(async () => {
   try {
     const entries = await fsp.readdir(TRANSFER_DIR, { withFileTypes: true });
@@ -676,7 +734,16 @@ setInterval(async () => {
   } catch {}
 }, 5 * 60 * 1000).unref();
 
-// ─── Start ─────────────────────────────────────────────────────────────────────
+// â”€â”€â”€ Process-level error guards â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT]', err.message || err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('[UNHANDLED_REJECTION]', reason instanceof Error ? reason.message : reason);
+});
+
+// â”€â”€â”€ Start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.listen(PORT, HOST, () => {
-  console.log(`🔒 Send tool running on http://${HOST}:${PORT} (AES-256-GCM encrypted at rest)`);
+  console.log(`ðŸ”’ Send tool running on http://${HOST}:${PORT} (AES-256-GCM encrypted at rest)`);
 });
