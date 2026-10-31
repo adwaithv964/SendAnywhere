@@ -38,6 +38,8 @@ const EXPIRY_MINUTES = Number(process.env.EXPIRY_MINUTES || 30);
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, 'data'));
 const TRANSFER_DIR = path.join(DATA_DIR, 'transfers');
 const TMP_DIR = path.join(DATA_DIR, 'tmp');
+const TEXT_DIR = path.join(DATA_DIR, 'texts');
+const MAX_TEXT_SIZE = 2 * 1024 * 1024; // 2 MB — covers 500,000 chars worst-case UTF-8
 
 // MIME types blocked from upload (HTML/JS injection and execution risk)
 const BLOCKED_MIME = new Set([
@@ -48,6 +50,7 @@ const BLOCKED_MIME = new Set([
 
 fs.mkdirSync(TRANSFER_DIR, { recursive: true });
 fs.mkdirSync(TMP_DIR, { recursive: true });
+fs.mkdirSync(TEXT_DIR, { recursive: true });
 
 // ─── Cryptographic helpers ─────────────────────────────────────────────────────
 
@@ -209,7 +212,7 @@ app.use((_req, res, next) => {
 });
 
 app.use(compression());
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: '4mb' }));
 
 // ─── Rate limiters ─────────────────────────────────────────────────────────────
 
@@ -246,6 +249,24 @@ const tokenLimiter = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many requests. Try again shortly.' }
+});
+
+// Text send: 10 per 15 min per IP
+const textSendLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many text sends. Try again in 15 minutes.' }
+});
+
+// Text lookup: 15 per 5 min per IP
+const textLookupLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 15,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many key attempts. Try again in a few minutes.' }
 });
 
 app.use('/api/', generalApiLimiter);
@@ -531,6 +552,96 @@ app.delete('/api/transfers/:code', requireTransfer, async (req, res) => {
   res.status(204).end();
 });
 
+// ─── Text transfers ────────────────────────────────────────────────────────────
+
+function textManifestPath(code) { return path.join(TEXT_DIR, `${code}.json`); }
+
+async function readTextManifest(code) {
+  const raw = await fsp.readFile(textManifestPath(code), 'utf8');
+  return JSON.parse(raw);
+}
+
+async function writeTextManifest(code, manifest) {
+  const target = textManifestPath(code);
+  const tmp = `${target}.tmp`;
+  await fsp.writeFile(tmp, JSON.stringify(manifest, null, 2), 'utf8');
+  await fsp.rename(tmp, target);
+}
+
+async function newTextCode() {
+  for (let i = 0; i < 8; i++) {
+    const code = String(crypto.randomInt(100000, 1000000));
+    try { await fsp.access(textManifestPath(code)); } catch { return code; }
+  }
+  return String(crypto.randomInt(100000, 1000000));
+}
+
+// POST /api/texts — create a text transfer
+app.post('/api/texts', textSendLimiter, async (req, res) => {
+  const text = req.body && typeof req.body.text === 'string' ? req.body.text : '';
+  if (!text.trim()) return res.status(400).json({ error: 'Text cannot be empty.' });
+  if (Buffer.byteLength(text, 'utf8') > MAX_TEXT_SIZE) {
+    return res.status(400).json({ error: 'Text exceeds maximum size of 500,000 characters.' });
+  }
+
+  const transferKey = crypto.randomBytes(32);
+  const sealedKey = sealKey(transferKey);
+  const encText = encryptSmall(transferKey, Buffer.from(text, 'utf8'));
+
+  const code = await newTextCode();
+  const manifest = {
+    code, sealedKey, encText,
+    charCount: text.length,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + EXPIRY_MINUTES * 60 * 1000
+  };
+
+  try {
+    await writeTextManifest(code, manifest);
+    res.status(201).json({ code, expiresAt: manifest.expiresAt, charCount: manifest.charCount });
+  } catch (err) {
+    console.error('Text upload error:', err);
+    res.status(500).json({ error: 'Could not save text.' });
+  }
+});
+
+// GET /api/texts/:code — retrieve a text transfer
+app.get('/api/texts/:code', textLookupLimiter, async (req, res) => {
+  const code = String(req.params.code || '');
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Enter a valid 6-digit key.' });
+
+  let manifest;
+  try { manifest = await readTextManifest(code); } catch {
+    return res.status(404).json({ error: 'Text not found or expired.' });
+  }
+
+  if (Date.now() >= manifest.expiresAt) {
+    try { await fsp.unlink(textManifestPath(code)); } catch {}
+    return res.status(410).json({ error: 'This text transfer is no longer available.' });
+  }
+
+  let key, text;
+  try {
+    key = unsealKey(manifest.sealedKey);
+    text = decryptSmall(key, manifest.encText).toString('utf8');
+  } catch {
+    return res.status(500).json({ error: 'Could not decrypt text.' });
+  }
+
+  // Single-use: delete after retrieval
+  try { await fsp.unlink(textManifestPath(code)); } catch {}
+
+  res.json({ code, text, charCount: manifest.charCount, expiresAt: manifest.expiresAt });
+});
+
+// DELETE /api/texts/:code — cancel a text transfer (sender)
+app.delete('/api/texts/:code', async (req, res) => {
+  const code = String(req.params.code || '');
+  if (!/^\d{6}$/.test(code)) return res.status(400).json({ error: 'Invalid key.' });
+  try { await fsp.unlink(textManifestPath(code)); } catch {}
+  res.status(204).end();
+});
+
 // ─── Health ────────────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => res.json({ ok: true, encrypted: true }));
 
@@ -547,6 +658,19 @@ setInterval(async () => {
       try {
         const m = await readManifest(entry.name);
         if (isExpired(m) || m.downloads >= m.maxDownloads) await safeRemoveTransfer(m.id);
+      } catch {}
+    }
+  } catch {}
+
+  // Also clean up expired text transfers
+  try {
+    const textFiles = await fsp.readdir(TEXT_DIR);
+    for (const file of textFiles) {
+      if (!file.endsWith('.json')) continue;
+      try {
+        const raw = await fsp.readFile(path.join(TEXT_DIR, file), 'utf8');
+        const m = JSON.parse(raw);
+        if (Date.now() >= m.expiresAt) await fsp.unlink(path.join(TEXT_DIR, file));
       } catch {}
     }
   } catch {}

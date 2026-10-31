@@ -1,25 +1,40 @@
 (() => {
   const $ = (id) => document.getElementById(id);
-  const fileInput = $('fileInput');
-  const chooseFiles = $('chooseFiles');
-  const keyInput = $('keyInput');
-  const receiveBtn = $('receiveBtn');
-  const status = $('status');
-  const sendModal = $('sendModal');
-  const resultModal = $('resultModal');
-  const receiveModal = $('receiveModal');
-  const fileList = $('fileList');
-  const startUpload = $('startUpload');
-  const progressWrap = $('progressWrap');
-  const progressBar = $('progressBar');
-  const progressText = $('progressText');
-  const resultKey = $('resultKey');
-  const resultExpiry = $('resultExpiry');
-  const resultFiles = $('resultFiles');
-  const receiveBody = $('receiveBody');
+
+  // -- DOM refs
+  const fileInput       = $('fileInput');
+  const chooseFiles     = $('chooseFiles');
+  const keyInput        = $('keyInput');
+  const receiveBtn      = $('receiveBtn');
+  const status          = $('status');
+  const sendModal       = $('sendModal');
+  const resultModal     = $('resultModal');
+  const receiveModal    = $('receiveModal');
+  const textModal       = $('textModal');
+  const textResultModal = $('textResultModal');
+  const textReceiveModal= $('textReceiveModal');
+  const fileList        = $('fileList');
+  const startUpload     = $('startUpload');
+  const progressWrap    = $('progressWrap');
+  const progressBar     = $('progressBar');
+  const progressText    = $('progressText');
+  const resultKey       = $('resultKey');
+  const resultExpiry    = $('resultExpiry');
+  const resultFiles     = $('resultFiles');
+  const receiveBody     = $('receiveBody');
+  const textInput       = $('textInput');
+  const textCharCount   = $('textCharCount');
+  const textProgressWrap= $('textProgressWrap');
+  const textProgressText= $('textProgressText');
+  const textResultKey   = $('textResultKey');
+  const textResultExpiry= $('textResultExpiry');
+  const textReceiveBody = $('textReceiveBody');
+
   let selectedFiles = [];
   let currentKey = '';
+  let currentTextKey = '';
 
+  // -- Utilities
   const bytes = (n) => {
     if (n < 1024) return `${n} B`;
     if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -42,9 +57,25 @@
   }
 
   function escapeHtml(s) {
-    return String(s).replace(/[&<>'"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
+    return String(s).replace(/[&<>'"]/g, c =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[c]));
   }
 
+  // -- Tab switching
+  $('tabFiles').addEventListener('click', () => switchTab('files'));
+  $('tabText').addEventListener('click',  () => switchTab('text'));
+
+  function switchTab(tab) {
+    const isFiles = tab === 'files';
+    $('tabFiles').classList.toggle('active', isFiles);
+    $('tabText').classList.toggle('active', !isFiles);
+    $('tabFiles').setAttribute('aria-selected', String(isFiles));
+    $('tabText').setAttribute('aria-selected', String(!isFiles));
+    $('panelFiles').classList.toggle('hidden', !isFiles);
+    $('panelText').classList.toggle('hidden', isFiles);
+  }
+
+  // -- File send flow
   function renderSelected() {
     fileList.innerHTML = selectedFiles.map(file => `
       <div class="file-item">
@@ -68,7 +99,8 @@
   $('closeSend').addEventListener('click', () => closeModal(sendModal));
   $('closeResult').addEventListener('click', () => closeModal(resultModal));
   $('closeReceive').addEventListener('click', () => closeModal(receiveModal));
-  document.querySelectorAll('.modal-backdrop').forEach(b => b.addEventListener('click', e => closeModal(e.target.closest('.modal'))));
+  document.querySelectorAll('.modal-backdrop').forEach(b =>
+    b.addEventListener('click', e => closeModal(e.target.closest('.modal'))));
 
   startUpload.addEventListener('click', async () => {
     if (!selectedFiles.length) return;
@@ -77,12 +109,12 @@
     startUpload.disabled = true;
     progressWrap.classList.remove('hidden');
     progressBar.style.width = '0%';
-    progressText.textContent = 'Encrypting & uploading…';
+    progressText.textContent = 'Encrypting & uploading...';
 
     try {
       const result = await xhrUpload('/api/transfers', form, percent => {
         progressBar.style.width = `${percent}%`;
-        progressText.textContent = `Encrypting & uploading… ${percent}%`;
+        progressText.textContent = `Encrypting & uploading... ${percent}%`;
       });
       currentKey = result.code;
       resultKey.textContent = result.code;
@@ -102,7 +134,7 @@
   $('copyKey').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(currentKey);
-      $('copyKey').textContent = 'Copied';
+      $('copyKey').textContent = 'Copied!';
       setTimeout(() => $('copyKey').textContent = 'Copy key', 1400);
     } catch {
       setStatus('Copy failed. Select and copy the key manually.', 'error');
@@ -117,6 +149,76 @@
     setStatus('Transfer deleted.', 'success');
   });
 
+  // -- Text send flow
+  $('openTextSend').addEventListener('click', () => {
+    textInput.value = '';
+    textCharCount.textContent = '0 chars';
+    textProgressWrap.classList.add('hidden');
+    $('startTextSend').disabled = false;
+    $('startTextSend').textContent = 'Create text key';
+    openModal(textModal);
+    textInput.focus();
+  });
+
+  textInput.addEventListener('input', () => {
+    const len = textInput.value.length;
+    const kb = (new Blob([textInput.value]).size / 1024).toFixed(1);
+    textCharCount.textContent = `${len.toLocaleString()} chars - ${kb} KB`;
+  });
+
+  $('closeText').addEventListener('click', () => closeModal(textModal));
+  $('closeTextResult').addEventListener('click', () => closeModal(textResultModal));
+  $('closeTextReceive').addEventListener('click', () => closeModal(textReceiveModal));
+
+  $('startTextSend').addEventListener('click', async () => {
+    const text = textInput.value;
+    if (!text.trim()) { setStatus('Text cannot be empty.', 'error'); return; }
+    const btn = $('startTextSend');
+    btn.disabled = true;
+    textProgressWrap.classList.remove('hidden');
+    textProgressText.textContent = 'Encrypting & sending...';
+
+    try {
+      const res = await fetch('/api/texts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Send failed.');
+
+      currentTextKey = data.code;
+      textResultKey.textContent = data.code;
+      textResultExpiry.textContent = `Available for ${Math.max(1, Math.round((data.expiresAt - Date.now()) / 60000))} minutes - single-use`;
+      closeModal(textModal);
+      openModal(textResultModal);
+      setStatus('Text ready. Share the 6-digit key.', 'success');
+    } catch (err) {
+      textProgressText.textContent = err.message || 'Send failed.';
+      btn.disabled = false;
+      setStatus(err.message || 'Send failed.', 'error');
+    }
+  });
+
+  $('copyTextKey').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(currentTextKey);
+      $('copyTextKey').textContent = 'Copied!';
+      setTimeout(() => $('copyTextKey').textContent = 'Copy key', 1400);
+    } catch {
+      setStatus('Copy failed. Select and copy the key manually.', 'error');
+    }
+  });
+
+  $('cancelTextTransfer').addEventListener('click', async () => {
+    if (!currentTextKey) return;
+    try { await fetch(`/api/texts/${currentTextKey}`, { method: 'DELETE' }); } catch {}
+    currentTextKey = '';
+    closeModal(textResultModal);
+    setStatus('Text deleted.', 'success');
+  });
+
+  // -- Receive flow (auto-detects files vs text)
   receiveBtn.addEventListener('click', receive);
   keyInput.addEventListener('keydown', e => { if (e.key === 'Enter') receive(); });
   keyInput.addEventListener('input', () => {
@@ -131,14 +233,32 @@
       return;
     }
     receiveBtn.disabled = true;
-    setStatus('Looking for transfer…');
+    setStatus('Looking for transfer...');
+
     try {
-      const res = await fetch(`/api/transfers/${code}`, { headers: { Accept: 'application/json' } });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Transfer unavailable.');
-      renderReceive(data);
-      openModal(receiveModal);
-      setStatus('Transfer found.', 'success');
+      // Try file transfer first
+      const fileRes = await fetch(`/api/transfers/${code}`, { headers: { Accept: 'application/json' } });
+      if (fileRes.ok) {
+        const data = await fileRes.json();
+        renderReceive(data);
+        openModal(receiveModal);
+        setStatus('Transfer found.', 'success');
+        return;
+      }
+
+      // Try text transfer
+      const textRes = await fetch(`/api/texts/${code}`, { headers: { Accept: 'application/json' } });
+      if (textRes.ok) {
+        const data = await textRes.json();
+        renderTextReceive(data);
+        openModal(textReceiveModal);
+        setStatus('Text received.', 'success');
+        return;
+      }
+
+      // Both failed
+      const errData = await (fileRes.status === 410 ? fileRes : textRes).json().catch(() => ({}));
+      throw new Error(errData.error || 'Transfer not found or expired.');
     } catch (err) {
       setStatus(err.message || 'Transfer unavailable.', 'error');
     } finally {
@@ -168,10 +288,26 @@
     });
   }
 
-  /**
-   * Request a one-time signed token from the server, then trigger the
-   * download with that token. This prevents URL-sharing and replay attacks.
-   */
+  function renderTextReceive(data) {
+    textReceiveBody.innerHTML = `
+      <div class="enc-notice">
+        <span class="enc-lock" aria-hidden="true">🔒</span>
+        AES-256-GCM Encrypted · ${data.charCount.toLocaleString()} chars · single-use
+      </div>
+      <pre class="text-received" id="receivedText">${escapeHtml(data.text)}</pre>
+      <button class="primary" id="copyReceivedText">Copy text</button>`;
+
+    $('copyReceivedText').addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(data.text);
+        $('copyReceivedText').textContent = 'Copied!';
+        setTimeout(() => $('copyReceivedText').textContent = 'Copy text', 1400);
+      } catch {
+        setStatus('Could not copy - select the text manually.', 'error');
+      }
+    });
+  }
+
   async function downloadWithToken(code, fileId) {
     try {
       const body = fileId ? { fileId } : {};
